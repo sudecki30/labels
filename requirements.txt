@@ -1,0 +1,10 @@
+python 3.6
+
+open-cv
+json
+tqdm
+PIL
+skimage
+numpy
+shapely
+io
