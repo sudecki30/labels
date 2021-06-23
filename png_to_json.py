@@ -32,13 +32,13 @@ def create_sub_mask_annotation(sub_mask, image_id, category_id, annotation_id, i
     # is partially occluded. (E.g. an elephant behind a tree)
     #contours = measure.find_contours(sub_mask, 0.5)
     sub_mask=np.uint8(sub_mask*255)
-    #cv.imshow( "Display window",cv.UMat(sub_mask))
-    #cv.waitKey(0)
+    # cv.imshow( "Display window",cv.UMat(sub_mask))
+    # cv.waitKey(0)
 
-    ret, thresh = cv.threshold( cv.UMat(sub_mask), 127, 255, 0)
+    ret, thresh = cv.threshold( sub_mask, 127, 255, 0)
     contours, hierarchy =cv.findContours(thresh,cv.RETR_CCOMP, cv.CHAIN_APPROX_NONE )
-    if len(contours)!=0:
-        hierarchy=hierarchy.get()[0]
+    #if len(contours)!=0:
+    #    hierarchy=hierarchy.get()[0]
     segmentations=[]
     areas=[]
     bboxs=[]
@@ -52,7 +52,11 @@ def create_sub_mask_annotation(sub_mask, image_id, category_id, annotation_id, i
         contour=contours[i]
         contour = np.vstack(contour).squeeze()
         if len(contour)>2:
-            if hierarchy[i][3] < 0:
+            # cimage = cv.cvtColor(sub_mask, cv.COLOR_GRAY2BGR)
+            # cv.drawContours(cimage, [contour], 0, (0, 255, 0), 2)
+            # cv.imshow('image',cimage)
+            # cv.waitKey(0)
+            if hierarchy[0][i][3] < 0:
 
 
 
@@ -120,12 +124,11 @@ def create_sub_mask_annotation(sub_mask, image_id, category_id, annotation_id, i
     return segmentations,areas,bboxs
 
 def image_to_json(folder_picture, folder_png,labels,listOfFiles, i):
+    l_path = len(str(folder_picture))
+    picture = listOfFiles[i][l_path + 1:-3]
 
-    l_path=len(str(folder_picture))
-    picture=listOfFiles[i][l_path+1:-3]
-
-    image_png=os.path.join(folder_png,picture+"png")
-    image_jpg=os.path.join(folder_picture,picture+"jpg")
+    image_png = os.path.join(folder_png, picture + "png")
+    image_jpg = os.path.join(folder_picture, picture + "jpg")
 
     image_label_open = Image.open(image_png).convert('RGB')
     with open(image_jpg, "rb") as imageFile:
@@ -214,9 +217,9 @@ if __name__ == "__main__":
     folder_picture = args.folder_picture
     folder_png = args.folder_png
 
-    # folder_config = "D:/config.json"
-    # folder_picture = "D:/images"
-    # folder_png = "D:/labels"
+    # folder_config = "config.json "
+    # folder_picture = "images"
+    # folder_png = "labels"
 
     print("PNG: "+str(folder_png))
     print("picture: " + str(folder_picture))
