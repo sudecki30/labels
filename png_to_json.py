@@ -24,14 +24,19 @@ def getListOfFiles(dirName):
 
     return listOfFiles
 
-
+def closest_node(node, nodes):
+    nodes = np.asarray(nodes)
+    dist_2 = np.sum((nodes - node)**2, axis=1)
+    return np.argmin(dist_2)
 
 def create_sub_mask_annotation(sub_mask, image_id, category_id, annotation_id, is_crowd):
     # Find contours (boundary lines) around each sub-mask
     # Note: there could be multiple contours if the object
     # is partially occluded. (E.g. an elephant behind a tree)
-    #contours = measure.find_contours(sub_mask, 0.5)
+
     sub_mask=np.uint8(sub_mask*255)
+
+    # cv.namedWindow("Display window", cv.WINDOW_NORMAL)
     # cv.imshow( "Display window",cv.UMat(sub_mask))
     # cv.waitKey(0)
 
@@ -42,9 +47,10 @@ def create_sub_mask_annotation(sub_mask, image_id, category_id, annotation_id, i
     segmentations=[]
     areas=[]
     bboxs=[]
-    polygons = []
+    h=[]
     contour_empty=[]
     for i in range(len(contours)):
+        index_hole = 0
         #contour_skit=contours[0]
 
         # Flip from (row, col) representation to (x, y)
@@ -52,12 +58,14 @@ def create_sub_mask_annotation(sub_mask, image_id, category_id, annotation_id, i
         contour=contours[i]
         contour = np.vstack(contour).squeeze()
         if len(contour)>2:
-            # cimage = cv.cvtColor(sub_mask, cv.COLOR_GRAY2BGR)
-            # cv.drawContours(cimage, [contour], 0, (0, 255, 0), 2)
-            # cv.imshow('image',cimage)
-            # cv.waitKey(0)
+
             if hierarchy[0][i][3] < 0:
 
+                # cimage = cv.cvtColor(sub_mask, cv.COLOR_GRAY2BGR)
+                # cv.drawContours(cimage, [contour], 0, (0, 255, 0), 10)
+                # cv.namedWindow("image", cv.WINDOW_NORMAL)
+                # cv.imshow('image', cimage)
+                # cv.waitKey(0)
 
 
                 # for i in range(len(contour)):
@@ -65,61 +73,73 @@ def create_sub_mask_annotation(sub_mask, image_id, category_id, annotation_id, i
                 #     contour[i] = (col - 1, row - 1)
 
                 # Make a polygon and simplify it
-                poly = Polygon(contour)
-                poly = poly.simplify(1, preserve_topology=False)
-                try:
-                    segmentation = np.array(poly.exterior.coords).tolist()
-                    # Combine the polygons to calculate the bounding box and area
-                    x, y, max_x, max_y = poly.bounds
-                    width = max_x - x
-                    height = max_y - y
-                    bbox = (x, y, width, height)
-                    area = poly.area
-                    segmentations.append(segmentation)
-                    areas.append(area)
-                    bboxs.append(bbox)
-
-                except:
-                    None
-
-            # else:
-            #     cont=hierarchy[i][3]
-            #     if not(cont in contour_empty): #test if hole is enpty contour
-            #
-            #         poly_hole = Polygon(contour)
-            #         poly_hole = poly_hole.simplify(1, preserve_topology=False)
-            # #         poly = Polygon(np.vstack(contours[cont]).squeeze())
-            # #         poly = poly.simplify(1, preserve_topology=False)
-            #         #cont = cont - len([i for i in contour_empty if i < cont])  # delete all enpty contour
 
 
-            #         ###try 1 to join contours with hole
-            #         try:
-            #             segmentation_hole = np.array(poly_hole.exterior.coords).tolist()
-            #             seg=[]
-            #             #seg.append(segmentations[cont][0])
-            #             seg.extend(segmentation_hole)
-            #             #seg.extend(segmentations[cont][-1:])
-            #             segmentations[cont].extend(seg)
-            #             area_hole = poly_hole.area
-            #             areas[cont] = areas[cont] - area_hole
-            #         except:
-            #             None
-            ###try 2 to join contours with hole
-                    # try:
-                    #     segmentation_hole = np.array(poly_hole.exterior.coords).tolist()
-                    #     #segmentation = np.array(poly.exterior.coords).tolist()
-                    #     end_point=segmentations[cont][-1:]
-                    #     segmentations[cont].extend(segmentation_hole)
-                    #     segmentations[cont].extend(end_point)
-                    #     area_hole = poly_hole.area
-                    #     areas[cont] = areas[cont] - area_hole
-                    # except:
-                    #     None
+                segmentation = contour
+                # Combine the polygons to calculate the bounding box and area
+                x, y, max_x, max_y = cv.boundingRect(contour)
+                width = max_x - x
+                height = max_y - y
+                bbox = (x, y, width, height)
+                area = cv.contourArea(contour)
+                segmentations.append(segmentation)
+                areas.append(area)
+                bboxs.append(bbox)
+                h.extend([i])
+
+
+            else:
+                cont=hierarchy[0][i][3]
+                if not(cont in contour_empty): #test if hole is enpty contour
+
+
+                    #cont = cont - len([i for i in contour_empty if i < cont])  # delete all enpty contour
+
+
+                    ###try 1 to join contours with hole
+                    if cont in h: #search in hole is in a old contour
+                        for hi in range(len(h)): #search index of contour with a hole
+                            if cont==h[hi]:
+                                index_hole=hi
+                        segmentation_hole = np.array(contour).tolist()
+
+                        #end_point = segmentations[cont][-1:]
+
+                        near_idx=closest_node(segmentation_hole[0],segmentations[index_hole]) #search the nearest point
+
+                        segmentations[index_hole]=np.concatenate([segmentations[index_hole][:near_idx],segmentation_hole,segmentations[index_hole][near_idx:]])
+
+                        area_hole = cv.contourArea(contour)
+                        areas[index_hole] = areas[index_hole] - area_hole
+
+
+                        # cimage = cv.cvtColor(sub_mask, cv.COLOR_GRAY2BGR)
+                        # pts = [np.array(contour, dtype=np.int32)]
+                        # # pts.reshape((-1, 1, 2))
+                        # cv.drawContours(cimage, pts, 0, (0, 255, 0), 10)
+                        # cv.namedWindow("image", cv.WINDOW_NORMAL)
+                        # cv.imshow('image', cimage)
+                        # cv.waitKey(0)
+                        # cimage = cv.cvtColor(sub_mask, cv.COLOR_GRAY2BGR)
+                        # pts = [np.array(segmentations[index_hole], dtype=np.int32)]
+                        # # pts.reshape((-1, 1, 2))
+                        # cv.drawContours(cimage, pts, 0, (0, 0, 255), 5)
+                        # cv.namedWindow("image", cv.WINDOW_NORMAL)
+                        # cv.imshow('image', cimage)
+                        # cv.waitKey(0)
+                        # print(index_hole)
+
+
 
         else:
             contour_empty.append(i)
-
+    # cimage = cv.cvtColor(sub_mask, cv.COLOR_GRAY2BGR)
+    # pts = [np.array(segmentations[0], dtype=np.int32)]
+    # # pts.reshape((-1, 1, 2))
+    # cv.drawContours(cimage, pts, 0, (0, 0, 255), 3)
+    # cv.namedWindow("image", cv.WINDOW_NORMAL)
+    # cv.imshow('image', cimage)
+    # cv.waitKey(0)
 
     return segmentations,areas,bboxs
 
@@ -155,7 +175,7 @@ def image_to_json(folder_picture, folder_png,labels,listOfFiles, i):
                     'label': labels[category_id]['name'],
                     'line_color': None,
                     'fill_color': None,
-                    'points': segmentations[i],
+                    'points': segmentations[i].tolist(),
                     'iscrowd': is_crowd,
                     'image_id': image_id,
                     'id': annotation_id,
@@ -217,9 +237,9 @@ if __name__ == "__main__":
     folder_picture = args.folder_picture
     folder_png = args.folder_png
 
-    # folder_config = "config.json "
-    # folder_picture = "images"
-    # folder_png = "labels"
+    # folder_config = "C:/Users/Guillaume/Documents/Python/AutonomousCar/Data/Mapilary/config.json "
+    # folder_picture = "C:/Users/Guillaume/Documents/Python/AutonomousCar/Data/Mapilary/images/train"
+    # folder_png = "C:/Users/Guillaume/Documents/Python/AutonomousCar/Data/Mapilary/labels/train"
 
     print("PNG: "+str(folder_png))
     print("picture: " + str(folder_picture))
